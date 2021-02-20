@@ -1,0 +1,90 @@
+version: '3'
+services:
+
+  #PHP Service
+  php:
+    image: sarjitdelivala/laravel-php
+    container_name: regain_php
+    restart: unless-stopped
+    tty: true
+    environment:
+      SERVICE_NAME: php
+    working_dir: /var/www
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./:/var/www
+      - ./docker-configs/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+    networks:
+      - app-network
+
+  #Nginx Service
+  nginx:
+    image: nginx:alpine
+    container_name: regain_nginx
+    restart: unless-stopped
+    tty: true
+    depends_on:
+      - php
+      - worker
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./:/var/www
+      - ./docker-configs/nginx/:/etc/nginx/conf.d/
+    networks:
+      - app-network
+
+  certbot:
+    image: certbot/certbot
+
+  #MySQL Service
+  db:
+    image: mysql:5.7.32
+    container_name: regain_db
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: regain
+      MYSQL_USER: regain
+      MYSQL_PASSWORD: regain
+      MYSQL_ROOT_PASSWORD: regain
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./docker-configs/mysql/mysql.cnf:/etc/mysql/my.cnf
+    networks:
+      - app-network
+
+  redis:
+    image: redis:alpine
+    container_name: regain_redis
+    networks:
+      - app-network
+    ports:
+      - "6379:6379"
+
+  worker:
+    image: sarjitdelivala/php-worker
+    volumes:
+      - "./:/var/www/:delegated"
+    networks:
+      - app-network
+    depends_on:
+      - redis
+      - db
+
+#Docker Networks
+networks:
+  app-network:
+    driver: bridge
+
+#Volumes
+volumes:
+  dbdata:
+    driver: local
